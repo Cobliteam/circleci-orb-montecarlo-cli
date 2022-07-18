@@ -1,0 +1,53 @@
+---
+version: 2.1
+
+display:
+  home_url: https://github.com/Cobliteam/circleci-orb-montecarlo-cli
+
+description: An orb for deploying Monte Carlo monitors using montecarlo CLI
+
+examples:
+  publish_monitors_example:
+    description: Publishing monitors from alarms/montecarlo into data namespace
+    usage:
+      version: 2.1
+      orbs:
+        montecarlo-cli: cobli/circleci-orb-montecarlo-cli@x.x.x
+      jobs:
+        publish_montecarlo_monitors:
+          docker:
+            - image: cimg/python:3.9.12
+          steps:
+            - checkout
+            - montecarlo-cli/publish-monitors:
+                working-dir: ./alarms/montecarlo
+                namespace: data
+      workflows:
+        publish_monitors:
+          jobs:
+            - publish_montecarlo_monitors:
+                context: <context-with-montecarlo-credentials>
+
+
+commands:
+  publish-monitors:
+    description: Publish project monitors
+    parameters:
+      working-dir:
+        type: string
+        description: path to montecarlo.yaml file
+      namespace:
+        type: string
+        description: namespace where monitors will be deployed
+    steps:
+      - run:
+          name: Install Monte Carlo CLI
+          command: pip install montecarlodata
+      - run:
+          name: Deploy monitors in <<parameters.namespace>> namespace
+          working_directory: <<parameters.working-dir>>
+          command: |
+            MCD_DEFAULT_API_ID=${MCD_DEFAULT_API_ID} \
+            MCD_DEFAULT_API_TOKEN=${MCD_DEFAULT_API_TOKEN} \
+            montecarlo monitors apply \
+                    --namespace <<parameters.namespace>>
