@@ -1,8 +1,9 @@
 # Publish monitors in Monte Carlo
 
 [CircleCI Orb](https://circleci.com/docs/orb-intro) commands to publish [Monte
-Carlo](https://www.montecarlodata.com/) monitors using [Monte Carlo
-CLI](https://docs.getmontecarlo.com/docs/monitors-as-code).
+Carlo](https://www.montecarlodata.com/)
+[monitors](https://docs.getmontecarlo.com/docs/monitors-as-code#monitor-configuration-reference)
+using [Monte Carlo CLI](https://docs.getmontecarlo.com/docs/monitors-as-code).
 
 The CLI requires Python 3.7 or higher in base container.
 
