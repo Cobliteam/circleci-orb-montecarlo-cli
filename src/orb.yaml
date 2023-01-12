@@ -42,7 +42,7 @@ commands:
     steps:
       - run:
           name: Install Monte Carlo CLI
-          command: pip install montecarlodata==0.25.3
+          command: pip install montecarlodata==0.25.3 pycarlo==0.4.0
       - run:
           name: Deploy monitors in <<parameters.namespace>> namespace
           working_directory: <<parameters.working-dir>>
