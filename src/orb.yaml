@@ -16,7 +16,7 @@ examples:
       jobs:
         publish_montecarlo_monitors:
           docker:
-            - image: cimg/python:3.9.12
+            - image: cimg/python:3.12
           steps:
             - checkout
             - montecarlo-cli/publish-monitors:
@@ -27,6 +27,45 @@ examples:
           jobs:
             - publish_montecarlo_monitors:
                 context: <context-with-montecarlo-credentials>
+
+  validate_monitors_example:
+    description: >
+      Validating monitor configuration on pull requests without credentials,
+      then publishing only on the main branch. Note that the validation job
+      takes no context: validate-monitors needs no API credentials.
+    usage:
+      version: 2.1
+      orbs:
+        montecarlo-cli: cobli/circleci-orb-montecarlo-cli@x.x.x
+      jobs:
+        validate_montecarlo_monitors:
+          docker:
+            - image: cimg/python:3.12
+          steps:
+            - checkout
+            - montecarlo-cli/validate-monitors:
+                working-dir: ./alarms/montecarlo
+                namespace: data
+        publish_montecarlo_monitors:
+          docker:
+            - image: cimg/python:3.12
+          steps:
+            - checkout
+            - montecarlo-cli/publish-monitors:
+                working-dir: ./alarms/montecarlo
+                namespace: data
+      workflows:
+        publish_monitors:
+          jobs:
+            - validate_montecarlo_monitors:
+                filters:
+                  branches:
+                    ignore: main
+            - publish_montecarlo_monitors:
+                context: <context-with-montecarlo-credentials>
+                filters:
+                  branches:
+                    only: main
 
 
 commands:
@@ -40,9 +79,7 @@ commands:
         type: string
         description: namespace where monitors will be deployed
     steps:
-      - run:
-          name: Install Monte Carlo CLI
-          command: pip install montecarlodata==0.25.3 pycarlo==0.4.0
+      - install-cli
       - run:
           name: Deploy monitors in <<parameters.namespace>> namespace
           working_directory: <<parameters.working-dir>>
@@ -50,4 +87,73 @@ commands:
             MCD_DEFAULT_API_ID=${MCD_DEFAULT_API_ID} \
             MCD_DEFAULT_API_TOKEN=${MCD_DEFAULT_API_TOKEN} \
             montecarlo monitors apply \
+                    --auto-yes \
                     --namespace <<parameters.namespace>>
+
+  validate-monitors:
+    description: >
+      Validate monitor configuration locally, without contacting the Monte
+      Carlo API. Catches malformed YAML, missing namespaces and structural
+      errors. Requires no credentials, so it is safe to run on pull requests
+      from any branch. It does NOT catch server-side errors such as invalid
+      field names, unknown domains or missing tables — use
+      validate-monitors-remote for that.
+    parameters:
+      working-dir:
+        type: string
+        description: path to montecarlo.yaml file
+      namespace:
+        type: string
+        description: namespace the monitors would be deployed to
+    steps:
+      - install-cli
+      - run:
+          name: Validate monitors for <<parameters.namespace>> namespace
+          working_directory: <<parameters.working-dir>>
+          command: |
+            # The CLI aborts when no profile is configured, even though
+            # `monitors compile` performs no API call. These placeholders keep
+            # the command credential-free.
+            MCD_DEFAULT_API_ID=unused \
+            MCD_DEFAULT_API_TOKEN=unused \
+            montecarlo monitors compile \
+                    --namespace <<parameters.namespace>>
+
+  validate-monitors-remote:
+    description: >
+      Validate monitor configuration against the Monte Carlo API and report the
+      changes that would be applied, without applying them. Catches errors that
+      validate-monitors cannot, but requires API credentials.
+
+      RISK: this command needs MCD_DEFAULT_API_ID and MCD_DEFAULT_API_TOKEN in
+      the environment. Any job that provides them also exposes them to the code
+      of the branch being built, so `--dry-run` alone is not a safety boundary.
+      Only run this on branches you trust — never on pull requests from forks,
+      and never in a workflow that grants the credentials context to arbitrary
+      branches. For untrusted branches use validate-monitors instead.
+    parameters:
+      working-dir:
+        type: string
+        description: path to montecarlo.yaml file
+      namespace:
+        type: string
+        description: namespace the monitors would be deployed to
+    steps:
+      - install-cli
+      - run:
+          name: Dry run monitors in <<parameters.namespace>> namespace
+          working_directory: <<parameters.working-dir>>
+          command: |
+            MCD_DEFAULT_API_ID=${MCD_DEFAULT_API_ID} \
+            MCD_DEFAULT_API_TOKEN=${MCD_DEFAULT_API_TOKEN} \
+            montecarlo monitors apply \
+                    --auto-yes \
+                    --dry-run \
+                    --namespace <<parameters.namespace>>
+
+  install-cli:
+    description: Install the Monte Carlo CLI
+    steps:
+      - run:
+          name: Install Monte Carlo CLI
+          command: pip install montecarlodata==0.175.0 pycarlo==0.15.209
