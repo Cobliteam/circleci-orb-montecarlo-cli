@@ -16,7 +16,7 @@ examples:
       jobs:
         publish_montecarlo_monitors:
           docker:
-            - image: cimg/python:3.9.12
+            - image: cimg/python:3.12
           steps:
             - checkout
             - montecarlo-cli/publish-monitors:
@@ -27,6 +27,46 @@ examples:
           jobs:
             - publish_montecarlo_monitors:
                 context: <context-with-montecarlo-credentials>
+
+  validate_monitors_example:
+    description: >
+      Validating monitor configuration on pull requests without applying it,
+      then publishing only on the main branch
+    usage:
+      version: 2.1
+      orbs:
+        montecarlo-cli: cobli/circleci-orb-montecarlo-cli@x.x.x
+      jobs:
+        validate_montecarlo_monitors:
+          docker:
+            - image: cimg/python:3.12
+          steps:
+            - checkout
+            - montecarlo-cli/publish-monitors:
+                working-dir: ./alarms/montecarlo
+                namespace: data
+                dry-run: true
+        publish_montecarlo_monitors:
+          docker:
+            - image: cimg/python:3.12
+          steps:
+            - checkout
+            - montecarlo-cli/publish-monitors:
+                working-dir: ./alarms/montecarlo
+                namespace: data
+      workflows:
+        publish_monitors:
+          jobs:
+            - validate_montecarlo_monitors:
+                context: <context-with-montecarlo-credentials>
+                filters:
+                  branches:
+                    ignore: main
+            - publish_montecarlo_monitors:
+                context: <context-with-montecarlo-credentials>
+                filters:
+                  branches:
+                    only: main
 
 
 commands:
@@ -39,15 +79,23 @@ commands:
       namespace:
         type: string
         description: namespace where monitors will be deployed
+      dry-run:
+        type: boolean
+        default: false
+        description: >
+          when true, only report the changes that would be applied without
+          applying them. Useful to validate monitor configuration on pull
+          requests before merging.
     steps:
       - run:
           name: Install Monte Carlo CLI
-          command: pip install montecarlodata==0.25.3 pycarlo==0.4.0
+          command: pip install montecarlodata==0.175.0 pycarlo==0.15.209
       - run:
-          name: Deploy monitors in <<parameters.namespace>> namespace
+          name: <<#parameters.dry-run>>Validate<</parameters.dry-run>><<^parameters.dry-run>>Deploy<</parameters.dry-run>> monitors in <<parameters.namespace>> namespace
           working_directory: <<parameters.working-dir>>
           command: |
             MCD_DEFAULT_API_ID=${MCD_DEFAULT_API_ID} \
             MCD_DEFAULT_API_TOKEN=${MCD_DEFAULT_API_TOKEN} \
             montecarlo monitors apply \
-                    --namespace <<parameters.namespace>>
+                    --auto-yes \
+                    --namespace <<parameters.namespace>> <<#parameters.dry-run>>--dry-run<</parameters.dry-run>>
